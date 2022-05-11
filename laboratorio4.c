@@ -16,7 +16,7 @@ long int *vetorEntrada; //vetor de entrada com dimensão dim
 float *vetorSaidaSequencial; //Vetor saída sequencial 
 float *vetorSaidaConcorrente; //vetor saída concorrente
 long int i_global = 0; // vetor para auxiliar na tarefa
-pthread_mutex_t mutex; 
+pthread_mutex_t mutex; //Para o lock e unlock 
 
 
 
@@ -34,41 +34,34 @@ int ehPrimo(long int n){
 
 
 
-//fluxo das threads
+//FLUXO DAS THREADS 
 void * tarefa(void *arg){
-	
-	
-   //Variável global, logo, usando lock 
+		
+   //VARIÁVEL GLOBAL, LOGO USAREMOS LOCK E UNLOCK  
    pthread_mutex_lock(&mutex);	
    long int i_local = i_global; 
    i_global++; 
    pthread_mutex_unlock(&mutex);
    
    
+
    while(i_local < dim){
       	if (ehPrimo(vetorEntrada[i_local])){
-      			//Variável global, logo, usando lock 
-      			pthread_mutex_lock(&mutex);
-			vetorSaidaConcorrente[i_local] = sqrt(vetorEntrada[i_local]);
-			pthread_mutex_unlock(&mutex);
-			
+		 vetorSaidaConcorrente[i_local] = sqrt(vetorEntrada[i_local]); //NÃO É NECESSÁRIO UM LOCK E UNLOCK, VISTO QUE CADA THREAD IRÁ TER SUA VARIÁVEL PARA ENTRAR NESSA CONDIÇÃO
 			}
 		else {
-			//Variável global, logo, usando lock 
-			pthread_mutex_lock(&mutex);
-			vetorSaidaConcorrente[i_local] = vetorEntrada[i_local];
-			pthread_mutex_unlock(&mutex);
+			vetorSaidaConcorrente[i_local] = vetorEntrada[i_local]; //NÃO É NECESSÁRIO UM LOCK E UNLOCK, VISTO QUE CADA THREAD IRÁ TER SUA VARIÁVEL PARA ENTRAR NESSA CONDIÇÃO
 			
 		}
 	
-	//Variável global, logo, usando lock 
+	//VARIÁVEL GLOBAL, LOGO USAREMOS LOCK E UNLOCK 
 	pthread_mutex_lock(&mutex);
 	i_local = i_global; 
 	i_global++;
-      	pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex);
    }
-   pthread_exit(NULL); 
 
+   pthread_exit(NULL); 
 }
 
 
@@ -89,27 +82,25 @@ void processaPrimos(long int *vetorEntrada, float *vetorSaida, int dim) {
 
 
 //VER SE RESULTADOS SÃO IGUAIS
-
 int compararFuncoes(){
 	for(long int i = 0; i < dim; i++){
 		if(vetorSaidaSequencial[i] != vetorSaidaConcorrente[i]) return 0; 
 	}
-	
 	return 1;	
 }
 
 
 
-
+//FLUXO PRINCIPAL 
 int main(int argc,  char *argv[]){
 
-	pthread_t *tid; //identificadores das threas no sistema 
+	pthread_t *tid; //IDENTIFICADORES DAS THREADS NO SISTEMA  
 
- 	double inicio, fim, delta1, delta2, desempenho;  // Para ajudar no cálculo de desempenho  
+ 	double inicio, fim, delta1, delta2, desempenho;  // PARA AJUDAR NO CÁLCULO DE DESEMPENHO  
  	
 
 
-	//recebe e valida  os parâmetros de entrada(dimensão do vetor, número de threads)
+	//RECEBE E VÁLIDA OS VALORES DE ENTRADA(DIMENSÃO DO VETOR, NÚMERO DE THREADS)
 	if(argc < 3){
 		fprintf(stderr, "Digite: %s <dimensao do vetor> <Número de threads>\n",argv[0]);
 	        return 1;	
@@ -121,7 +112,7 @@ int main(int argc,  char *argv[]){
 
 
 
-	//alocar  o vetor de entrada
+	//ALOCA O VETOR DE ENTRADA
 	vetorEntrada= (long int *) malloc(sizeof(long int)*dim); 
        	if(vetorEntrada== NULL) {
 		fprintf(stderr, "ERRO--malloc\n");
@@ -129,10 +120,7 @@ int main(int argc,  char *argv[]){
 	}
 	
 	
-	
-	
-	
-	//alocar o vetor de saída de sequencial e concorrente. 
+	//ALOCA O VETOR DE SAIDA SEQUENCIAL E CONCORRENTE 
 	vetorSaidaSequencial= (float *) malloc(sizeof(float)*dim); 
        	if(vetorSaidaSequencial== NULL) {
 		fprintf(stderr, "ERRO--malloc\n");
@@ -150,7 +138,7 @@ int main(int argc,  char *argv[]){
 
 
 
-	//preenche o vetor de entrada; 
+	//PREENCHE O VETOR DE ENTRADA 
 	for(long int i =0; i<dim; i++){
 		vetorEntrada[i] = i;
 	}
@@ -172,7 +160,7 @@ int main(int argc,  char *argv[]){
 
 
 	
-	//Versão concorrente
+	//USANDO AS THREADS(VERSÃO CONCORRENTE)
 	GET_TIME(inicio); 
 	tid = (pthread_t *) malloc(sizeof(pthread_t) * nthreads); 
         if(tid == NULL){
@@ -181,7 +169,7 @@ int main(int argc,  char *argv[]){
 	}	
 	
 	
-	//criar as threads
+	//CRIAR AS THREADS 
 	 for( long int i = 0; i<nthreads; i++){ 	
 		if(pthread_create(tid+i, NULL, tarefa, (void*) i)){
 			fprintf(stderr, "ERRO--pthread_create\n");
@@ -190,7 +178,7 @@ int main(int argc,  char *argv[]){
 	 }
 
 
-	//aguardar o termina das threads 
+	//AGUARDA AS THREADS TERMINAR  
 	for( long int i = 0; i<nthreads; i++){
                 if(pthread_join(*(tid+i), NULL)){
                         fprintf(stderr, "ERRO--pthread_create\n");
@@ -207,11 +195,10 @@ int main(int argc,  char *argv[]){
 
 
 
-
 	desempenho = delta1/delta2; 
 
 
-	//exibir os resultados. 
+	//EXIBIR OS RESULTADOS
 	printf("RESULTADOS DO SEQUENCIAL E CONCORRENTE\n ");
 	printf("\nO DESEMPENHO FOI DE : %lf \n", desempenho); 
 	printf("\nVERIFICANDO SE OS DOIS VETORES DE SAÍDAS SÃO IGUAIS: ");
@@ -219,7 +206,7 @@ int main(int argc,  char *argv[]){
 	else {printf("\nNÃO SÃO IGUAIS\n");}
 	
 	
-	//Libera as areas de memoria alocadas 
+	//LIBERA AS ÁREAS DE MEMÓRIA ALOCADA 
 	free(vetorEntrada); 
 	free(tid); 
 	free(vetorSaidaSequencial);
