@@ -18,37 +18,35 @@
 #include "timer.h" 
 #define randm() 4|2[uid]&3
 
-int aux = 0; 
-/* Program Parameters */
-#define MAXN 10000  /* Max value of N */
-int N;  /* Matrix size */
+int aux = 0; // auxiliar na detecção de matriz singular
+#define MAXN 10000  // valor máximo de N
+int N;  // tamanho da matriz
 double DETERMINANTE = 1; 
 double DETERMINANTESEQUENCIAL = 1;
-int configuracao = 0; 
 
-/*-------------------New Variables as part of this Project-----------------*/
-int NUMTHREADS; /* Number of threads to use */
-int NORM = 0; /* Variable shared by threads to keep a track of current norm */
-pthread_mutex_t mutex; /* Mutex to synchronize NORM calculations */
-pthread_cond_t cv; /* Condition Variable to Broadcast / Wait for calculations from other threads */
 
+int NUMTHREADS; //NUMERO DE THREADS
+int NORM = 0; // VARIÁVEL COMPARTILHADA ENTRE AS THREADS
+pthread_mutex_t mutex; 
+pthread_cond_t cv; 
 
 typedef struct info_t {
-	int start; /* Starting row */
-	int end; /* Ending row */
+	int inicio; /* Starting row */
+	int fim; /* Ending row */
 } info;
 
 
-/* Matrices and vectors */
+/* VETORES E MATRIZES */
 volatile double A[MAXN][MAXN], B[MAXN], X[MAXN];
 volatile double Asequencial[MAXN][MAXN], Bsequencial[MAXN], Xsequencial[MAXN];
-/* A * X = B, solve for X */
 
 
+
+//gauss concorrente
 void gauss();  
 
 
-
+// SEQUENCIAL APENAS ESCALONANDO 
 void gaussSequencial(){
     int i,j,k;
     for(i=0;i<N-1;i++){
@@ -62,7 +60,7 @@ void gaussSequencial(){
              
 }
 
-
+//SEQUENCIAL USANDO O MÉTODO A.X=B 
 void gaussSequencialAXB(){
   int i, j, k, l, m;
   
@@ -124,6 +122,7 @@ void gaussSequencialAXB(){
 }
 
 
+//CALCULANDO DETERMINANTE
 void determinante(int id){
   
    if(id == 1){
@@ -142,6 +141,7 @@ void determinante(int id){
 }
 
 
+//PARA IMPRIMIR X
 void print_X(int id) {
 	int row;
 	
@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
     	int i, j; 
     	double inicio, fim, delta1, delta2, desempenho;  // PARA AJUDAR NO CÁLCULO DE DESEMPENHO  
     	int menu; 
-    	int auxiliarMenu = 0; 
+    
 
     	printf("\n------------------------------------------MENU----------------------------------------\n");
    	printf("\n********Qual tamanho de matriz dos arquivos você quer trabalhar?*******\n");
@@ -419,7 +419,7 @@ int main(int argc, char **argv) {
   		     break; 
   		}
   		GET_TIME(fim);
-  	        print_X(2);
+  		if(N != 1000 )   print_X(2); // NÃO IMPRIMIR A MATRIZ DESEMPENHO 
   	        delta1 = fim-inicio; 
 		printf("\n---------------------------------------------------------------------------\n");
 		printf("\nTempo sequencial: %lf\n", delta1);
@@ -433,10 +433,10 @@ int main(int argc, char **argv) {
   		     break; 
   		}
 		GET_TIME(fim);
-		print_X(1);
+	        if(N != 1000 )   print_X(1); // NÃO IMPRIMIR A MATRIZ DESEMPENHO 
 		delta2 = fim-inicio; 
 		printf("\n---------------------------------------------------------------------------\n");
-		printf("\nTempo sequencial: %lf\n", delta2);
+		printf("\nTempo concorrente: %lf\n", delta2);
 		desempenho = delta1/delta2; 
 		printf("\nO DESEMPENHO FOI DE : %lf \n", desempenho); 
 		printf("\nPROGRAMA FINALIZADO!");
@@ -449,15 +449,29 @@ int main(int argc, char **argv) {
   	break; 
   	
   	case 2: 
+  	
+  		GET_TIME(inicio);
 		gauss();
 		determinante(1); 
+		GET_TIME(fim);
+	        printf ("\nO determinante CONCORRENTE: %lf\n", DETERMINANTE);
+		delta1 = fim-inicio; 
+		printf("\n---------------------------------------------------------------------------\n");
+		printf("\nTempo Concorrente: %lf\n", delta1);
+		
+		GET_TIME(inicio);
   		gaussSequencial();
-		printf ("\nO determinante SEQUENCIAL: %lf\n", DETERMINANTE);
 	  	determinante(2); 
-	        printf ("\nO determinante CONCORRENTE: %lf\n", DETERMINANTESEQUENCIAL);
-	        
-	        
-	        printf("\nPROGRAMA FINALIZADO!");
+	  	GET_TIME(fim);
+		printf ("\nO determinante SEQUENCIAL: %lf\n", DETERMINANTESEQUENCIAL);
+	        delta2 = fim-inicio;
+	        desempenho = delta1/delta2;  
+		printf("\n---------------------------------------------------------------------------\n");
+		printf("\nTempo sequencial: %lf\n", delta2);
+		desempenho = delta2/delta1; 
+		printf("\nO DESEMPENHO FOI DE : %lf \n", desempenho); 
+		printf("\nPROGRAMA FINALIZADO!");
+	 
   	break;
   	
   	
@@ -498,15 +512,20 @@ int main(int argc, char **argv) {
 }
 
 
-void *parallel_row(info * row_data) {
+void *paralelo(info * row_data) {
 	int col;
 	int linha, norm;
-
-	for (norm = 0 ; norm < row_data->end ; norm++) {
-		/* Todas as threads calculam a norma 0 e esperam*/
-		for (linha = row_data->start; linha <= row_data->end; linha++) {
+	
+	
+	for (norm = 0 ; norm < row_data->fim ; norm++) {
+	        // como está já dividio os processos, não precisaremos de mutex nessa área
+		//Todas as threads calculam a norma 0 e esperam
+		for (linha = row_data->inicio; linha <= row_data->fim; linha++) {
+			//pegando o pivô 
 			if (linha > norm) {
 				double multiplicador = A[linha][norm] / A[norm][norm]; 
+				
+				//aplica na linha o seu novo valor 
 				for (col = norm; col < N; col++) {
 					A[linha][col] -= A[norm][col] * (multiplicador);
 				}
@@ -514,17 +533,18 @@ void *parallel_row(info * row_data) {
 
 			}
 		}
-
+		
+		// ESPERAR AS THREADS TERMINAREM 
 		pthread_mutex_lock(&mutex);
-		if ((row_data->start <= NORM+1) && (NORM+1 <= row_data->end)) { 
+		if ((row_data->inicio <= NORM+1) && (NORM+1 <= row_data->fim)) { 
 			/* broadcast Eu não sou o último tópico da lista */
-			if (!(NORM == row_data->end)) {
+			if (!(NORM == row_data->fim)) {
 				NORM = NORM + 1;
 				pthread_cond_broadcast(&cv);
 			}
 		}  else {
 			/* wait para cálculo de norma de um thread anterior */
-			if ((!(row_data->end == NORM) || NORM<=norm) && ((NORM + 1) < N)) {
+			if ((!(row_data->fim == NORM) || NORM<=norm) && ((NORM + 1) < N)) {
 				pthread_cond_wait(&cv, &mutex); 
 			}
 		}
@@ -534,16 +554,10 @@ void *parallel_row(info * row_data) {
 	pthread_exit(0);
 }
 
-/* ------------------ Above Was Provided --------------------- */
 
-/****** You will replace this routine with your own parallel version *******/
-/* Provided global variables are MAXN, N, A[][], B[], and X[],
- *  * defined in the beginning of this code.  X[] is initialized to zeros.
- *   */
 void gauss() {
-	int norm, linha, col, i;  
+	int linha, col, i;  
 	
-	double multiplicador;
 
 
 	int restante, total_num_linhas, linhas_por_processo, enviado, num_linha_para_enviar,  num_threads = 0;
@@ -558,54 +572,57 @@ void gauss() {
 
 	/* Calcule quantas linhas cada processo terá */
 	linhas_por_processo = total_num_linhas/NUMTHREADS;
-	if (total_num_linhas > (NUMTHREADS * linhas_por_processo)) {
-		restante = (total_num_linhas) % (NUMTHREADS);
+	if (total_num_linhas > (NUMTHREADS * linhas_por_processo)) {  // se sobrar 
+		restante = (total_num_linhas) % (NUMTHREADS); // colocamos numa variável "restante" 
 	}
+	
 
 	/* Variável para acompanhar as linhas distribuídas até o momento */
-	/* O valor inicial é 1, pois nenhum cálculo é necessário para a linha 0 */
+	/* O valor inicial é 1, pois nenhum cálculo é necessário para a linha 0 de acordo com a eliminação de gauss*/
 	enviado = 1;
 
 	for (i = 0; i< NUMTHREADS; i++) {
-		if (restante > 0 ) {
-			num_linha_para_enviar = linhas_por_processo + 1;
+		if (restante > 0 ) {  //SE TIVERMOS RESTANTE VAMOS SEPARA IGUALMENTE NO NUM_LINHA_PARA_ENVIAR
+			num_linha_para_enviar = linhas_por_processo + 1; 
 			restante--;
-		} else {
+		} else {  // SE NÃO APENAS ENVIA O NORMAL 
 			num_linha_para_enviar = linhas_por_processo;
 		}
 
+		//SE TIVERMOS UM NÚMERO DE LINHA PARA ENVIAR MAIOR QUE OQ SOBROU 
 		if (num_linha_para_enviar > (N- enviado)) {
 			num_linha_para_enviar = N - enviado;
 		}
 
+		//ALOCANDO A ESTRUTURA
 		info * data = malloc(sizeof(info));
 		
 		
-		/* Calcular linha inicial */
-		data->start = enviado;
+		// Calcular linha inicial 
+		data->inicio = enviado;
 
-		/* Calcular linha final*/
-		data->end = data->start + num_linha_para_enviar - 1;
-		if (data->end >= N) data->end = N-1; 
+		// Calcular linha final
+		data->fim = data->inicio + num_linha_para_enviar - 1;
+		if (data->fim >= N) data->fim = N-1; 
 
-		/* Vamos enviar os dados */
-		if (data->start <= data->end) {
-			pthread_create(&tid[num_threads], NULL, (void *)parallel_row, data);
+		// Vamos enviar os dados 
+		if (data->inicio <= data->fim) {
+			pthread_create(&tid[num_threads], NULL, (void *)paralelo, data);
 			enviado = enviado + num_linha_para_enviar;
 			num_threads++;
 		}
 	}
+	
+	
 
-	/* Distribuição concluída.. Vamos esperar as threads terminarem a computação*/
+	// Distribuição concluída.. Vamos esperar as threads terminarem a computação
 	for (i = 0; i < num_threads; i++) {
 		pthread_join(tid[i], NULL);
 	}
 
-	/*Elementos diagonais não são normalizados para 1. Isso é tratado na substituição de volta*/    
 
 
-
-	
+	//VERIFICAR SE A MATRIZ É SINGULAR 
 	for(int i = 0; i<N; i++){
 		if (Asequencial[i][i] == 0) {
           	  aux = 1; 
@@ -614,6 +631,7 @@ void gauss() {
 	
 	
 	
+	//Elementos diagonais não são normalizados para 1. Isso é tratado na substituição de volta   
 	if(aux == 0){
 	/* substituição de volta */
 	for (linha = N - 1; linha >= 0; linha--) {
