@@ -1,5 +1,5 @@
 # COMPUTAÇÃO CONCORRENTE 
-Repositório dos laboratórios de Computação Concorrente. 
+Repositório dos laboratórios de Computação Concorrente. USANDO C E JAVA
 #
 *Aluno : Victor da Silva Moura
 DRE: 120124419*
